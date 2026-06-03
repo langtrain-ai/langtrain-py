@@ -1,10 +1,19 @@
 """
-Langtrain — The unified Python SDK for training, aligning, and deploying LLMs.
+Langtrain — Python SDK for training, aligning, and deploying LLMs.
 
-    pip install langtrain              # cloud API + dataset intelligence
-    pip install langtrain[train]       # + local GPU training
-    pip install langtrain[vision]      # + vision LLM support
-    pip install langtrain[all]         # everything
+Install:
+    pip install langtrain-ai              # cloud API + dataset intelligence
+    pip install langtrain-ai[train]       # + local GPU training
+    pip install langtrain-ai[vision]      # + vision LLM support
+    pip install langtrain-ai[all]         # everything
+
+Authentication:
+    # Option 1 — environment variable (recommended for scripts/CI)
+    export LANGTRAIN_API_KEY=your_key
+
+    # Option 2 — browser login via the CLI tool (for interactive use)
+    npx langtrain login      # saves ~/.langtrain/credentials.json
+                             # langtrain-ai reads this automatically
 
 Quick start — local training:
     from langtrain import FastLanguageModel
@@ -15,7 +24,7 @@ Quick start — local training:
     model = FastLanguageModel.get_peft_model(model, r=16, method="adaptive_rank")
     FastLanguageModel.train(model, tokenizer, dataset, output_dir="./output")
 
-Quick start — drop any dataset, get a training config:
+Quick start — dataset intelligence:
     from langtrain import DatasetIntelligence
 
     report = DatasetIntelligence.analyze("my_data.jsonl")
@@ -25,7 +34,7 @@ Quick start — drop any dataset, get a training config:
 Quick start — cloud API:
     from langtrain import LangtrainClient
 
-    client = LangtrainClient(api_key="lt_...")
+    client = LangtrainClient()          # reads LANGTRAIN_API_KEY automatically
     job = client.fine_tune(model="llama-3.1-8b", dataset_id="ds_xyz")
     for step in job.stream():
         print(step)
@@ -36,7 +45,7 @@ from __future__ import annotations
 import os
 import sys
 
-__version__ = "1.0.0"
+__version__ = "1.0.4"
 __author__ = "Pritesh Raj"
 __email__ = "priteshraj41@gmail.com"
 

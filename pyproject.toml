@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "langtrain-ai"
-version = "1.0.3"
+version = "1.0.4"
 description = "The unified Python SDK for training, aligning, and deploying LLMs — text and vision."
 authors = [
     { name = "Pritesh Raj", email = "priteshraj41@gmail.com" }
@@ -35,13 +35,12 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
-# Core deps — minimal, GPU stack is optional
+# Core deps — minimal, no CLI deps needed (SDK only)
 dependencies = [
     "requests>=2.28.0",
     "tqdm>=4.62.0",
     "pyyaml>=6.0",
     "rich>=13.0.0",
-    "click>=8.0.0",
     "numpy>=1.21.0",
 ]
 
@@ -79,9 +78,6 @@ all = [
     "langvision>=0.1.57",
 ]
 
-[project.scripts]
-langtrain = "langtrain.cli:main"
-lt = "langtrain.cli:main"
 
 [project.urls]
 Homepage = "https://langtrain.xyz"

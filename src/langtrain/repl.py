@@ -977,24 +977,60 @@ def _prompt() -> str:
 # Main REPL entry point
 # ─────────────────────────────────────────────────────────────────────────────
 
-def start(api_key: str = "", base_url: str = "", version: str = ""):
-    """Start the interactive REPL. Call from `lt` with no arguments."""
-    global _session
-
-    creds_path = Path.home() / ".langtrain" / "credentials.json"
-    if not api_key:
+def _load_api_key(explicit_key: str = "") -> str:
+    """
+    Resolve API key from (in order of priority):
+      1. Explicit argument passed to start()
+      2. LANGTRAIN_API_KEY environment variable
+      3. ~/.langtrain/credentials.json  (written by `npx langtrain login`)
+      4. ~/.langtrain/config.json       (written by langtrain-sdk npm)
+    """
+    if explicit_key:
+        return explicit_key
+    if os.environ.get("LANGTRAIN_API_KEY"):
+        return os.environ["LANGTRAIN_API_KEY"]
+    for creds_file in [
+        Path.home() / ".langtrain" / "credentials.json",
+        Path.home() / ".langtrain" / "config.json",
+    ]:
         try:
-            creds = json.loads(creds_path.read_text())
-            api_key = creds.get("api_key", "")
+            data = json.loads(creds_file.read_text())
+            key = data.get("api_key") or data.get("apiKey") or ""
+            if key:
+                return key
         except Exception:
             pass
-    api_key = api_key or os.environ.get("LANGTRAIN_API_KEY", "")
+    return ""
 
-    if not api_key:
-        console.print("[yellow]⚠  Not logged in. Run: lt login[/]")
+
+def start(api_key: str = "", base_url: str = "", version: str = ""):
+    """
+    Start the Langtrain interactive REPL.
+
+    Authentication is read silently from (in order):
+      - api_key argument
+      - LANGTRAIN_API_KEY environment variable
+      - ~/.langtrain/credentials.json (written by `npx langtrain login`)
+
+    No login prompts — authentication belongs in langtrain-sdk (npm).
+    """
+    global _session
+
+    resolved_key = _load_api_key(api_key)
+
+    if not resolved_key:
+        console.print()
+        console.print("[bold]⚡ Langtrain[/]")
+        console.print()
+        console.print("[yellow]⚠  Not authenticated.[/]")
+        console.print()
+        console.print("  To authenticate, run one of:")
+        console.print("  [cyan]  npx langtrain login[/]         [dim](browser — recommended)[/]")
+        console.print("  [cyan]  export LANGTRAIN_API_KEY=…[/]  [dim](environment variable)[/]")
+        console.print()
         sys.exit(0)
 
-    _session.api_key  = api_key
+    _session.api_key  = resolved_key
     _session.base_url = base_url or os.environ.get("LANGTRAIN_BASE_URL", "https://api.langtrain.xyz")
 
     _setup_readline()
