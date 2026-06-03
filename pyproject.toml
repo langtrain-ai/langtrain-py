@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "langtrain-ai"
-version = "1.0.2"
+version = "1.0.3"
 description = "The unified Python SDK for training, aligning, and deploying LLMs — text and vision."
 authors = [
     { name = "Pritesh Raj", email = "priteshraj41@gmail.com" }

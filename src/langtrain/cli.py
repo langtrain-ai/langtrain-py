@@ -3,7 +3,7 @@ langtrain CLI — lt / langtrain command.
 
 Usage:
     lt                               # interactive REPL (Claude Code-style)
-    lt login                         # browser-based auth (no API key needed)
+    lt login                         # save your API key
     lt logout                        # clear credentials
     lt whoami                        # account info + GPU availability
     lt gpu                           # list GPU options
@@ -51,10 +51,23 @@ def main(ctx):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @main.command()
-def login():
-    """Authenticate via browser — no API key needed."""
-    from langtrain.auth import browser_login
-    browser_login()
+@click.argument("api_key", required=False)
+def login(api_key):
+    """Save your Langtrain API key. Get one at https://app.langtrain.xyz/settings"""
+    import json
+    from pathlib import Path
+    if not api_key:
+        api_key = click.prompt("Paste your Langtrain API key", hide_input=True)
+    creds_path = Path.home() / ".langtrain" / "credentials.json"
+    creds_path.parent.mkdir(parents=True, exist_ok=True)
+    creds_path.write_text(json.dumps({"api_key": api_key}, indent=2))
+    creds_path.chmod(0o600)
+    try:
+        me = _client().me()
+        click.echo(click.style(f"✓ Logged in as {me.get('email', 'unknown')}", fg="green", bold=True))
+        click.echo(f"  Plan: {me.get('plan', 'free').title()}")
+    except Exception as e:
+        click.echo(click.style(f"✗ Could not verify key: {e}", fg="yellow"))
 
 
 @main.command()
