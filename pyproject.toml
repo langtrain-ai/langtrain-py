@@ -3,8 +3,8 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "langtrain"
-version = "1.0.0"
+name = "langtrain-ai"
+version = "1.0.1"
 description = "The unified Python SDK for training, aligning, and deploying LLMs — text and vision."
 authors = [
     { name = "Pritesh Raj", email = "priteshraj41@gmail.com" }
@@ -13,7 +13,8 @@ maintainers = [
     { name = "Langtrain AI", email = "contact@langtrain.ai" }
 ]
 readme = "README.md"
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.8"
 keywords = [
     "llm", "fine-tuning", "LoRA", "QLoRA", "AdaptiveRank", "RLHF", "DPO", "GRPO", "PPO",
@@ -24,7 +25,6 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
@@ -88,7 +88,7 @@ Homepage = "https://langtrain.xyz"
 Documentation = "https://langtrain.xyz/docs"
 Repository = "https://github.com/langtrain-ai/langtrain-py"
 Issues = "https://github.com/langtrain-ai/langtrain-py/issues"
-PyPI = "https://pypi.org/project/langtrain"
+PyPI = "https://pypi.org/project/langtrain-ai"
 
 [tool.setuptools.packages.find]
 where = ["src"]

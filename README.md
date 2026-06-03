@@ -1,11 +1,11 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/langtrain-ai/langtrain-web/main/public/og-default.png" alt="Langtrain" width="400" />
+<img src="https://raw.githubusercontent.com/langtrain-ai/langtrain-py/main/assets/logo.svg" alt="Langtrain" width="420" />
 
 <h3>The unified Python SDK for training, aligning, and deploying LLMs</h3>
 
 <p>
-  <a href="https://pypi.org/project/langtrain/"><img src="https://img.shields.io/pypi/v/langtrain.svg?style=for-the-badge&logo=pypi&logoColor=white" alt="PyPI" /></a>
+  <a href="https://pypi.org/project/langtrain-ai/"><img src="https://img.shields.io/pypi/v/langtrain-ai.svg?style=for-the-badge&logo=pypi&logoColor=white" alt="PyPI" /></a>
   <a href="https://github.com/langtrain-ai/langtrain-py/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" alt="License" /></a>
   <a href="https://langtrain.xyz/docs"><img src="https://img.shields.io/badge/docs-langtrain.xyz-green?style=for-the-badge" alt="Docs" /></a>
 </p>
@@ -15,10 +15,10 @@
 ---
 
 ```bash
-pip install langtrain              # cloud API + dataset intelligence
-pip install langtrain[train]       # + local GPU training (text LLMs)
-pip install langtrain[vision]      # + vision LLMs (LLaVA, Qwen-VL, …)
-pip install langtrain[all]         # everything
+pip install langtrain-ai              # cloud API + dataset intelligence
+pip install langtrain-ai[train]       # + local GPU training (text LLMs)
+pip install langtrain-ai[vision]      # + vision LLMs (LLaVA, Qwen-VL, …)
+pip install langtrain-ai[all]         # everything
 ```
 
 ## What's inside
