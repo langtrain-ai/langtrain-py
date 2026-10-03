@@ -75,20 +75,23 @@ FastLanguageModel.train(model, tokenizer, dataset, output_dir="./output")
 ```python
 from langtrain import LangtrainClient
 
-client = LangtrainClient(api_key="lt_...")
+client = LangtrainClient()   # reads LANGTRAIN_API_KEY (sk-lt-...)
 
-# Check account + GPU options
+# Check the key, and see GPU options
 print(client.me())
 print(client.gpu.available())
 
-# Fine-tune
+# Fine-tune a dataset uploaded in the dashboard
 job = client.fine_tune(
-    model="meta-llama/Llama-3.1-8B",
-    dataset_id="ds_xyz",
-    method="adaptive_rank",
+    "meta-llama/Llama-3.1-8B-Instruct",
+    dataset_id="<dataset id>",
+    method="qlora",
 )
 for step in job.stream():
     print(step)
+
+# Push the merged model to your Hugging Face account
+job.export("you/my-assistant")
 ```
 
 ### CLI

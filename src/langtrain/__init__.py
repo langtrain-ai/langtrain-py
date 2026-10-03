@@ -29,13 +29,13 @@ Quick start — dataset intelligence:
 
     report = DatasetIntelligence.analyze("my_data.jsonl")
     print(report.recommended_model)   # e.g. "meta-llama/Llama-3.1-8B"
-    print(report.training_config)     # full AdaptiveRank config
+    print(report.lora_rank)           # suggested LoRA rank
 
 Quick start — cloud API:
     from langtrain import LangtrainClient
 
     client = LangtrainClient()          # reads LANGTRAIN_API_KEY automatically
-    job = client.fine_tune(model="llama-3.1-8b", dataset_id="ds_xyz")
+    job = client.fine_tune("meta-llama/Llama-3.1-8B-Instruct", dataset_id="<dataset id>")
     for step in job.stream():
         print(step)
 """
@@ -45,7 +45,7 @@ from __future__ import annotations
 import os
 import sys
 
-__version__ = "1.0.4"
+__version__ = "1.1.0"
 __author__ = "Pritesh Raj"
 __email__ = "priteshraj41@gmail.com"
 
