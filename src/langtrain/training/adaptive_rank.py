@@ -93,15 +93,6 @@ class AdaptiveRankTrainer:
         )
         trainer.train(dataset)
 
-    Usage (cloud):
-        trainer = AdaptiveRankTrainer(
-            model_name="meta-llama/Llama-3.1-8B",
-            config=config,
-            api_key="lt_...",
-        )
-        job = trainer.train(dataset_id="ds_xyz")
-        for step in job.stream():
-            print(step)
     """
 
     def __init__(
@@ -112,7 +103,9 @@ class AdaptiveRankTrainer:
     ) -> None:
         self.model_name = model_name
         self.config = config or AdaptiveRankConfig()
-        self.api_key = api_key or _env_key()
+        # AdaptiveRank runs on your own GPU. Cloud runs don't offer it yet, so
+        # a key in the environment is ignored and an explicit one is an error.
+        self.api_key = api_key
         self._mode = "remote" if self.api_key else "local"
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -265,14 +258,11 @@ class AdaptiveRankTrainer:
     # ── Remote training ───────────────────────────────────────────────────────
 
     def _train_remote(self, dataset_id: Optional[str] = None, **kwargs):
-        from langtrain.client import LangtrainClient, RemoteJob
-        client = LangtrainClient(api_key=self.api_key)
-        return client.fine_tune(
-            model=self.model_name,
-            dataset_id=dataset_id,
-            method="adaptive_rank",
-            config=self._config_dict(),
-            **kwargs,
+        from langtrain.client import LangtrainError
+        raise LangtrainError(
+            "AdaptiveRank runs on your own GPU; cloud runs don't offer it yet. "
+            "Drop api_key= to train locally, or start a cloud run with "
+            "LangtrainClient().fine_tune(model, dataset_id=..., method='qlora')."
         )
 
     def _config_dict(self) -> Dict[str, Any]:

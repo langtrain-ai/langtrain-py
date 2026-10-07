@@ -1,25 +1,21 @@
 """
-langtrain.client — LangtrainClient: unified cloud API client.
+langtrain.client — LangtrainClient, for runs on Langtrain's GPUs.
 
 Usage:
     from langtrain import LangtrainClient
 
-    client = LangtrainClient(api_key="lt_...")
+    client = LangtrainClient()               # reads LANGTRAIN_API_KEY (sk-lt-...)
 
-    # Fine-tune
-    job = client.fine_tune(model="llama-3.1-8b", dataset_id="ds_xyz")
+    job = client.fine_tune(
+        "meta-llama/Llama-3.1-8B-Instruct",
+        dataset_id="<id from the dashboard>",
+        method="qlora",
+        hyperparameters={"n_epochs": 3},
+    )
     for step in job.stream():
         print(step)
 
-    # Analyze a dataset
-    report = client.analyze_dataset(dataset_id="ds_xyz")
-
-    # List models
-    models = client.models.list()
-
-    # Chat with a deployed model
-    for chunk in client.chat.stream(model_id="model_xyz", messages=[...]):
-        print(chunk, end="", flush=True)
+    job.export("you/my-assistant")          # push the merged model to Hugging Face
 """
 
 from __future__ import annotations
@@ -62,150 +58,99 @@ class TrainingStep:
 
 
 class RemoteJob:
-    """Handle for a training job running on langtrain-server."""
+    """Handle for a fine-tuning run on Langtrain's GPUs."""
 
     def __init__(self, job_id: str, client: "LangtrainClient") -> None:
         self.job_id = job_id
         self._client = client
 
     def status(self) -> Dict[str, Any]:
-        return self._client._get(f"/api/v1/finetune/{self.job_id}")
+        """The run as the API returns it: status, progress (0-100), metrics, error_message."""
+        return self._client._get(f"/api/v1/training/jobs/{self.job_id}")
 
-    def stream(self, poll_interval: float = 2.0) -> Generator[TrainingStep, None, None]:
-        """Poll for training steps until completion."""
-        seen_steps: set = set()
+    def stream(self, poll_interval: float = 5.0) -> Generator[TrainingStep, None, None]:
+        """Yield a TrainingStep whenever the run reports a new step, until it finishes."""
+        last_step = -1
         while True:
             data = self.status()
-            status = data.get("status", "")
-            for step_data in data.get("steps", []):
-                s = step_data.get("step", 0)
-                if s not in seen_steps:
-                    seen_steps.add(s)
-                    yield TrainingStep(
-                        step=s,
-                        loss=step_data.get("loss"),
-                        learning_rate=step_data.get("learning_rate"),
-                        epoch=step_data.get("epoch"),
-                        progress=step_data.get("progress"),
-                        raw=step_data,
-                    )
-            if status in ("completed", "failed", "cancelled"):
+            metrics = data.get("metrics") or {}
+            step = metrics.get("step") or metrics.get("global_step")
+            if step is not None and step > last_step:
+                last_step = step
+                yield TrainingStep(
+                    step=step,
+                    loss=metrics.get("loss", metrics.get("train_loss")),
+                    learning_rate=metrics.get("learning_rate"),
+                    epoch=metrics.get("epoch"),
+                    progress=(data.get("progress") or 0) / 100,
+                    raw=data,
+                )
+            if data.get("status") in ("completed", "failed", "cancelled"):
                 break
             time.sleep(poll_interval)
 
-    def wait(self) -> Dict[str, Any]:
-        """Block until job completes. Returns final status."""
-        for _ in self.stream():
-            pass
-        return self.status()
+    def wait(self, poll_interval: float = 10.0) -> Dict[str, Any]:
+        """Block until the run finishes. Returns the final run."""
+        while True:
+            data = self.status()
+            if data.get("status") in ("completed", "failed", "cancelled"):
+                return data
+            time.sleep(poll_interval)
 
     def cancel(self) -> None:
-        self._client._post(f"/api/v1/finetune/{self.job_id}/cancel")
+        self._client._post(f"/api/v1/training/jobs/{self.job_id}/cancel")
+
+    def export(self, repo_id: str, private: bool = True, hf_token: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Merge the adapter into the base model and push it to a Hugging Face
+        repo you own (e.g. "you/my-assistant"). Uses the Hugging Face token
+        saved in your settings unless you pass hf_token.
+        """
+        payload: Dict[str, Any] = {"repo_id": repo_id, "private": private, "merge_lora": True}
+        if hf_token:
+            payload["hf_token"] = hf_token
+        return self._client._post(f"/api/v1/training/jobs/{self.job_id}/export", payload)
 
     def __repr__(self) -> str:
         return f"RemoteJob(job_id={self.job_id!r})"
 
 
 class ModelsAPI:
+    """The catalogue of base models you can fine-tune."""
+
     def __init__(self, client: "LangtrainClient") -> None:
         self._c = client
 
-    def list(self, status: Optional[str] = None) -> List[Dict]:
-        params = {"status": status} if status else {}
-        return self._c._get("/api/v1/models", params=params).get("models", [])
+    def list(self) -> List[Dict]:
+        data = self._c._get("/api/v1/models")
+        return data.get("models", data) if isinstance(data, dict) else data
 
     def get(self, model_id: str) -> Dict:
         return self._c._get(f"/api/v1/models/{model_id}")
-
-    def delete(self, model_id: str) -> None:
-        self._c._delete(f"/api/v1/models/{model_id}")
-
-    def download_url(self, model_id: str) -> str:
-        return self._c._get(f"/api/v1/models/{model_id}/download").get("url", "")
 
 
 class DatasetsAPI:
     def __init__(self, client: "LangtrainClient") -> None:
         self._c = client
 
-    def list(self) -> List[Dict]:
-        return self._c._get("/api/v1/datasets").get("datasets", [])
-
-    def get(self, dataset_id: str) -> Dict:
-        return self._c._get(f"/api/v1/datasets/{dataset_id}")
-
     def upload(self, path: str, name: Optional[str] = None) -> Dict:
+        """
+        Upload a JSONL or CSV file for training. If your API key isn't allowed
+        to upload, upload the file in the dashboard and use its id instead.
+        """
         from pathlib import Path
         p = Path(path)
         with open(p, "rb") as f:
-            return self._c._upload("/api/v1/datasets", f, p.name, name=name or p.stem)
-
-    def analyze(self, dataset_id: str) -> "IntelligenceReport":
-        from langtrain.intelligence import DatasetIntelligence
-        raw = self._c._post(f"/api/v1/datasets/{dataset_id}/intelligence")
-        return DatasetIntelligence._dict_to_report(raw)
-
-    def delete(self, dataset_id: str) -> None:
-        self._c._delete(f"/api/v1/datasets/{dataset_id}")
-
-
-class ChatAPI:
-    def __init__(self, client: "LangtrainClient") -> None:
-        self._c = client
-
-    def complete(
-        self,
-        model_id: str,
-        messages: List[Dict[str, str]],
-        temperature: float = 0.7,
-        max_tokens: int = 1024,
-        stream: bool = False,
-    ) -> Any:
-        payload = {
-            "model": model_id,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "stream": stream,
-        }
-        if stream:
-            return self.stream(model_id, messages, temperature, max_tokens)
-        return self._c._post("/api/v1/chat", payload)
-
-    def stream(
-        self,
-        model_id: str,
-        messages: List[Dict[str, str]],
-        temperature: float = 0.7,
-        max_tokens: int = 1024,
-    ) -> Generator[str, None, None]:
-        payload = {
-            "model": model_id,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "stream": True,
-        }
-        import json as _json
-        with self._c._session().post(
-            f"{self._c.base_url}/api/v1/chat",
-            json=payload,
-            headers=self._c._headers(),
-            stream=True,
-            timeout=120,
-        ) as resp:
-            resp.raise_for_status()
-            for line in resp.iter_lines():
-                if line:
-                    line = line.decode() if isinstance(line, bytes) else line
-                    if line.startswith("data: ") and line != "data: [DONE]":
-                        try:
-                            delta = _json.loads(line[6:])
-                            token = delta.get("choices", [{}])[0].get("delta", {}).get("content", "")
-                            if token:
-                                yield token
-                        except Exception:
-                            pass
+            try:
+                return self._c._upload("/api/v1/files", f, name or p.name, purpose="fine-tune")
+            except LangtrainError as e:
+                if e.status_code in (401, 403):
+                    raise LangtrainError(
+                        "This API key can't upload datasets. Upload the file in the Langtrain "
+                        "dashboard (Data) and pass its id to fine_tune(dataset_id=...).",
+                        status_code=e.status_code,
+                    ) from e
+                raise
 
 
 class GPUInfo:
@@ -213,23 +158,21 @@ class GPUInfo:
         self._c = client
 
     def available(self) -> List[Dict]:
-        """Return available GPU instances on the user's account."""
-        return self._c._get("/api/v1/gpu/available").get("gpus", [])
-
-    def usage(self) -> Dict:
-        """Return current GPU usage for the account."""
-        return self._c._get("/api/v1/gpu/usage")
+        """GPU tiers cloud runs can use, with their memory and price."""
+        return self._c._get("/api/v1/training/gpu-tiers").get("gpu_tiers", [])
 
 
 class LangtrainClient:
     """
-    Unified client for the Langtrain cloud API.
+    Client for the Langtrain cloud API (https://api.langtrain.xyz/api/v1).
 
     from langtrain import LangtrainClient
 
-    client = LangtrainClient(api_key="lt_...")
-    print(client.me())             # account info
-    print(client.gpu.available())  # GPU options
+    client = LangtrainClient()            # reads LANGTRAIN_API_KEY
+    job = client.fine_tune("meta-llama/Llama-3.1-8B-Instruct", dataset_id="...")
+    for step in job.stream():
+        print(step)
+    job.export("you/my-assistant")
     """
 
     def __init__(
@@ -240,61 +183,87 @@ class LangtrainClient:
         self.api_key = api_key or os.environ.get("LANGTRAIN_API_KEY") or os.environ.get("LT_API_KEY")
         if not self.api_key:
             raise LangtrainError(
-                "No API key found. Pass api_key= or set LANGTRAIN_API_KEY env var.\n"
-                "Get your key at https://app.langtrain.xyz/home/settings"
+                "No API key found. Pass api_key= or set LANGTRAIN_API_KEY.\n"
+                "Create one in the dashboard under API keys: https://app.langtrain.xyz/api"
             )
         self.base_url = (base_url or BASE_URL).rstrip("/")
         self._s: Optional[requests.Session] = None
+        self._account: Optional[Dict[str, Any]] = None
 
         # Sub-APIs
         self.models = ModelsAPI(self)
         self.datasets = DatasetsAPI(self)
-        self.chat = ChatAPI(self)
         self.gpu = GPUInfo(self)
 
-    # ── Auth + account ────────────────────────────────────────────────────────
+    # ── Account ───────────────────────────────────────────────────────────────
 
     def me(self) -> Dict[str, Any]:
-        """Return account info: email, plan, usage."""
-        return self._get("/api/v1/me")
-
-    def usage(self) -> Dict[str, Any]:
-        return self._get("/api/v1/usage")
+        """Check the API key. Returns its organization_id, plan, features and limits."""
+        if self._account is None:
+            resp = self._session().post(
+                f"{self.base_url}/api/v1/auth/api-keys/validate",
+                params={"api_key": self.api_key},
+                timeout=_DEFAULT_TIMEOUT,
+            )
+            _raise(resp)
+            self._account = resp.json()
+        return self._account
 
     # ── Fine-tuning ───────────────────────────────────────────────────────────
+
+    def training_methods(self) -> List[Dict]:
+        """The methods cloud runs support, with a description of each."""
+        return self._get("/api/v1/training/training-methods")
 
     def fine_tune(
         self,
         model: str,
-        dataset_id: Optional[str] = None,
-        method: str = "adaptive_rank",
-        config: Optional[Dict[str, Any]] = None,
+        dataset_id: str,
+        method: str = "qlora",
+        hyperparameters: Optional[Dict[str, Any]] = None,
+        name: Optional[str] = None,
+        task: str = "text",
         **kwargs,
     ) -> RemoteJob:
-        payload = {
+        """
+        Start a fine-tuning run on Langtrain's GPUs.
+
+        model:            Hugging Face model id
+        dataset_id:       a dataset uploaded in the dashboard or with datasets.upload()
+        method:           qlora (default), lora, dora, sft, ia3, prefix, dpo, orpo, simpo or kto
+        hyperparameters:  n_epochs, learning_rate, batch_size, max_seq_length,
+                          lora_rank, lora_alpha, lora_dropout, ...
+        """
+        if "config" in kwargs and hyperparameters is None:
+            hyperparameters = kwargs.pop("config")
+        payload: Dict[str, Any] = {
             "base_model": model,
             "dataset_id": dataset_id,
-            "method": method,
-            "config": config or {},
+            "training_method": method,
+            "task": task,
             **kwargs,
         }
-        data = self._post("/api/v1/finetune", payload)
-        return RemoteJob(data["job_id"], self)
+        if hyperparameters:
+            payload["hyperparameters"] = hyperparameters
+        if name:
+            payload["name"] = name
+        data = self._post("/api/v1/training/jobs", payload)
+        return RemoteJob(data.get("id") or data["job_id"], self)
 
-    def jobs(self) -> List[Dict]:
-        return self._get("/api/v1/finetune").get("jobs", [])
+    def jobs(self, limit: int = 10, organization_id: Optional[str] = None) -> List[Dict]:
+        """Your workspace's runs, newest first."""
+        org = organization_id or self.me().get("organization_id")
+        return self._get("/api/v1/training/jobs", params={"organization_id": org, "limit": limit}).get("data", [])
 
     def job(self, job_id: str) -> RemoteJob:
         return RemoteJob(job_id, self)
 
     # ── Dataset intelligence ──────────────────────────────────────────────────
 
-    def analyze_dataset(self, dataset_id: str) -> "IntelligenceReport":
-        return self.datasets.analyze(dataset_id)
-
     def analyze_file(self, path: str) -> "IntelligenceReport":
+        """Analyse a local dataset file on this machine."""
         from langtrain.intelligence import DatasetIntelligence
-        return DatasetIntelligence.analyze(path, api_key=self.api_key)
+        return DatasetIntelligence.analyze(path)
 
     # ── HTTP helpers ──────────────────────────────────────────────────────────
 
@@ -305,9 +274,9 @@ class LangtrainClient:
 
     def _headers(self) -> Dict[str, str]:
         return {
-            "Authorization": f"Bearer {self.api_key}",
+            "X-API-Key": self.api_key,
             "Content-Type": "application/json",
-            "User-Agent": f"langtrain-py/1.0.0",
+            "User-Agent": "langtrain-py/1.1.0",
         }
 
     def _get(self, path: str, params: Optional[Dict] = None) -> Any:
@@ -339,13 +308,13 @@ class LangtrainClient:
         _raise(resp)
 
     def _upload(self, path: str, file, filename: str, **fields) -> Any:
-        headers = {"Authorization": f"Bearer {self.api_key}", "User-Agent": "langtrain-py/1.0.0"}
+        headers = {"X-API-Key": self.api_key, "User-Agent": "langtrain-py/1.1.0"}
         files = {"file": (filename, file)}
         resp = self._session().post(
             f"{self.base_url}{path}",
             headers=headers,
             files=files,
-            data=fields,
+            params=fields,
             timeout=120,
         )
         _raise(resp)

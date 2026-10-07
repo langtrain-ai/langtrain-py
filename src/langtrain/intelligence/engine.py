@@ -115,8 +115,11 @@ class DatasetIntelligence:
         filename: str = "upload",
         api_key: Optional[str] = None,
     ) -> IntelligenceReport:
-        """Analyze raw bytes. Tries cloud API first, then local analysis."""
-        key = api_key or os.environ.get("LANGTRAIN_API_KEY") or os.environ.get("LT_API_KEY")
+        """
+        Analyze raw bytes on this machine. Pass api_key= to try the cloud
+        engine first; a key in the environment alone never uploads your data.
+        """
+        key = api_key
 
         if key:
             try:
@@ -133,7 +136,7 @@ class DatasetIntelligence:
         base = os.environ.get("LANGTRAIN_API_URL", "https://api.langtrain.xyz")
         resp = requests.post(
             f"{base}/api/v1/datasets/intelligence",
-            headers={"Authorization": f"Bearer {api_key}"},
+            headers={"X-API-Key": api_key},
             files={"file": (filename, data)},
             timeout=120,
         )

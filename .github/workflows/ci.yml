@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  # release.yml runs this first and only publishes if it passes.
+  workflow_call:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Every internal import resolves
+        run: python scripts/check_imports.py src langtrain
+
+      # The base install (no [train]) is what `pip install langtrain-ai` gives you.
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . pytest
+
+      - name: Package imports
+        run: python -c "import langtrain; print('langtrain', langtrain.__version__)"
+
+      - name: API contract tests
+        run: pytest -q tests
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build and check the distribution
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          twine check dist/*
+      - name: Version in pyproject.toml and __init__.py agree
+        run: |
+          PY=$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          INIT=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' src/langtrain/__init__.py)
+          echo "pyproject $PY, __init__ $INIT"
+          test "$PY" = "$INIT"

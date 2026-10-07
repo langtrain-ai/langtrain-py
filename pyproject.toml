@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "langtrain-ai"
-version = "1.0.4"
+version = "1.1.0"
 description = "The unified Python SDK for training, aligning, and deploying LLMs — text and vision."
 authors = [
     { name = "Pritesh Raj", email = "priteshraj41@gmail.com" }
@@ -59,6 +59,8 @@ train = [
     "pandas>=2.0.0",
     "pyarrow>=12.0.0",
     "openpyxl>=3.1.0",
+    # FastLanguageModel comes from langtune; without it, local training can't run.
+    "langtune>=0.1.45",
 ]
 # Vision model support
 vision = [
@@ -73,9 +75,7 @@ kernels = [
 ]
 # Full install
 all = [
-    "langtrain[train,vision,kernels]",
-    "langtune>=0.1.41",
-    "langvision>=0.1.57",
+    "langtrain-ai[train,vision,kernels]",
 ]
 
 
