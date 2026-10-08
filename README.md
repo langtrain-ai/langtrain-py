@@ -1,12 +1,12 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/langtrain-ai/langtrain-py/main/assets/logo.svg" alt="Langtrain" width="420" />
+<img src="https://raw.githubusercontent.com/langtrain-ai/langtrain_py/main/assets/logo.svg" alt="Langtrain" width="420" />
 
 <h3>The unified Python SDK for training, aligning, and deploying LLMs</h3>
 
 <p>
   <a href="https://pypi.org/project/langtrain-ai/"><img src="https://img.shields.io/pypi/v/langtrain-ai.svg?style=for-the-badge&logo=pypi&logoColor=white" alt="PyPI" /></a>
-  <a href="https://github.com/langtrain-ai/langtrain-py/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" alt="License" /></a>
+  <a href="https://github.com/langtrain-ai/langtrain_py/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" alt="License" /></a>
   <a href="https://langtrain.xyz/docs"><img src="https://img.shields.io/badge/docs-langtrain.xyz-green?style=for-the-badge" alt="Docs" /></a>
 </p>
 
