@@ -82,8 +82,8 @@ all = [
 [project.urls]
 Homepage = "https://langtrain.xyz"
 Documentation = "https://langtrain.xyz/docs"
-Repository = "https://github.com/langtrain-ai/langtrain-py"
-Issues = "https://github.com/langtrain-ai/langtrain-py/issues"
+Repository = "https://github.com/langtrain-ai/langtrain_py"
+Issues = "https://github.com/langtrain-ai/langtrain_py/issues"
 PyPI = "https://pypi.org/project/langtrain-ai"
 
 [tool.setuptools.packages.find]
